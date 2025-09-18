@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calorie & Protein Tracker</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and Babel for in-browser JSX transformation -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* A simple fade-in animation for elements */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- Configuration ---
+        // Replace this URL with the one where your Node.js backend is hosted.
+        // If you are running it locally on port 5000, this is the correct URL.
+        const API_URL = 'http://localhost:5000/api';
+
+        // --- Thresholds for styling ---
+        const CALORIE_THRESHOLD = 2000;
+        const PROTEIN_THRESHOLD = 100;
+
+        // --- Helper Components ---
+        const Spinner = () => (
+            <div className="flex justify-center items-center p-8">
+                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cyan-500"></div>
+            </div>
+        );
+
+        const ErrorMessage = ({ message }) => (
+            <div className="bg-red-500/20 border border-red-500 text-red-300 px-4 py-3 rounded-lg text-center fade-in">
+                <p>{message}</p>
+            </div>
+        );
+        
+        // --- Main App Component ---
+        function App() {
+            // State to manage which page is currently visible
+            const [page, setPage] = useState('home'); 
+
+            const navigateTo = (newPage) => {
+                window.history.pushState({ page: newPage }, '', `#${newPage}`);
+                setPage(newPage);
+            };
+
+            useEffect(() => {
+                const handlePopState = (event) => {
+                    setPage(event.state?.page || 'home');
+                };
+                window.addEventListener('popstate', handlePopState);
+                
+                // Set initial page based on URL hash
+                const initialPage = window.location.hash.replace('#', '') || 'home';
+                setPage(initialPage);
+                
+                return () => window.removeEventListener('popstate', handlePopState);
+            }, []);
+
+            return (
+                <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 md:p-8">
+                    <div className="w-full max-w-4xl mx-auto">
+                        <header className="text-center mb-8">
+                            <h1 className="text-4xl md:text-5xl font-bold text-cyan-400 tracking-tight">Health Tracker</h1>
+                            <p className="text-slate-400 mt-2">Monitor your daily calorie and protein intake.</p>
+                        </header>
+
+                        <nav className="flex justify-center bg-slate-800/50 rounded-lg p-2 mb-8 space-x-2">
+                            <button 
+                                onClick={() => navigateTo('home')} 
+                                className={`px-4 py-2 rounded-md font-semibold transition-all duration-300 ${page === 'home' ? 'bg-cyan-500 text-white' : 'hover:bg-slate-700'}`}>
+                                Home
+                            </button>
+                            <button 
+                                onClick={() => navigateTo('display')}
+                                className={`px-4 py-2 rounded-md font-semibold transition-all duration-300 ${page === 'display' ? 'bg-cyan-500 text-white' : 'hover:bg-slate-700'}`}>
+                                Daily History
+                            </button>
+                        </nav>
+                        
+                        <main>
+                            {page === 'home' && <HomePage />}
+                            {page === 'display' && <DisplayPage />}
+                        </main>
+                         <footer className="text-center text-slate-500 mt-12 text-sm">
+                            <p>Created with React, Node.js, and MongoDB</p>
+                        </footer>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- Home Page Component ---
+        function HomePage() {
+            const [calories, setCalories] = useState('');
+            const [protein, setProtein] = useState('');
+            const [todayStats, setTodayStats] = useState({ totalCalories: 0, totalProtein: 0 });
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [successMessage, setSuccessMessage] = useState('');
+
+            // Function to get today's date in YYYY-MM-DD format using local time
+            const getTodayDateString = () => {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+
+            useEffect(() => {
+                const fetchTodayStats = async () => {
+                    try {
+                        const response = await fetch(`${API_URL}/days`);
+                        if (!response.ok) throw new Error('Could not fetch data.');
+                        const data = await response.json();
+                        const todayData = data.find(day => day.date === getTodayDateString());
+                        if (todayData) {
+                            setTodayStats(todayData);
+                        }
+                    } catch (err) {
+                        setError('Failed to load today\'s data. The backend server might be down.');
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                fetchTodayStats();
+            }, []);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError(null);
+                setSuccessMessage('');
+
+                if (!calories || !protein) {
+                    setError('Please enter values for both calories and protein.');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${API_URL}/meals`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ calories: Number(calories), protein: Number(protein) }),
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.message || 'Failed to submit meal.');
+                    }
+                    
+                    const updatedDay = await response.json();
+                    setTodayStats(updatedDay);
+                    setCalories('');
+                    setProtein('');
+                    setSuccessMessage('Meal added successfully!');
+                    setTimeout(() => setSuccessMessage(''), 3000); // Clear message after 3 seconds
+
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            const handleReset = async () => {
+                if (!window.confirm('Are you sure you want to reset today\'s calories and protein to 0? This action cannot be undone.')) {
+                    return;
+                }
+
+                setError(null);
+                setSuccessMessage('');
+
+                try {
+                    const response = await fetch(`${API_URL}/days/reset`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.message || 'Failed to reset data.');
+                    }
+                    
+                    const resetDay = await response.json();
+                    setTodayStats(resetDay);
+                    setSuccessMessage('Today\'s data has been reset successfully!');
+                    setTimeout(() => setSuccessMessage(''), 3000); // Clear message after 3 seconds
+
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+            
+            const todayFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            
+            const isWarning = todayStats.totalCalories > CALORIE_THRESHOLD || todayStats.totalProtein < PROTEIN_THRESHOLD;
+            const statsColor = isWarning && (todayStats.totalCalories > 0 || todayStats.totalProtein > 0) ? 'text-orange-400' : 'text-cyan-400';
+
+            if (loading) return <Spinner />;
+
+            return (
+                <div className="space-y-8 fade-in">
+                    <div className="bg-slate-800/50 p-6 rounded-lg shadow-lg text-center">
+                        <h2 className="text-xl text-slate-300">Today's Intake</h2>
+                        <p className="text-sm text-slate-400 mb-4">Date: {todayFormatted}</p>
+                        <div className={`text-3xl font-bold ${statsColor}`}>
+                            <p>Total Calories: {todayStats.totalCalories}</p>
+                            <p>Total Protein: {todayStats.totalProtein}g</p>
+                        </div>
+                    </div>
+                    
+                    <div className="bg-slate-800/50 p-6 rounded-lg shadow-lg">
+                        <h2 className="text-2xl font-bold mb-4 text-center">Add a Meal</h2>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label htmlFor="calories" className="block text-sm font-medium text-slate-300">Calories</label>
+                                <input
+                                    type="number"
+                                    id="calories"
+                                    value={calories}
+                                    onChange={(e) => setCalories(e.target.value)}
+                                    placeholder="e.g., 500"
+                                    className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-cyan-500 focus:border-cyan-500"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="protein" className="block text-sm font-medium text-slate-300">Protein (g)</label>
+                                <input
+                                    type="number"
+                                    id="protein"
+                                    value={protein}
+                                    onChange={(e) => setProtein(e.target.value)}
+                                    placeholder="e.g., 30"
+                                    className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-cyan-500 focus:border-cyan-500"
+                                />
+                            </div>
+                            <button type="submit" className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-md transition duration-300">
+                                Add Meal
+                            </button>
+                        </form>
+                        
+                        {/* Reset Button */}
+                        <div className="mt-4 pt-4 border-t border-slate-600">
+                            <button 
+                                onClick={handleReset} 
+                                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 flex items-center justify-center space-x-2"
+                            >
+                                <span>🗑️</span>
+                                <span>Reset Today's Data</span>
+                            </button>
+                        </div>
+                        
+                         {error && <div className="mt-4"><ErrorMessage message={error}/></div>}
+                         {successMessage && <div className="mt-4 text-center text-green-400 fade-in">{successMessage}</div>}
+                    </div>
+                </div>
+            );
+        }
+
+        // --- Display Page Component ---
+        function DisplayPage() {
+            const [daysData, setDaysData] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+
+            useEffect(() => {
+                const fetchAllDays = async () => {
+                    try {
+                        const response = await fetch(`${API_URL}/days`);
+                        if (!response.ok) throw new Error('Could not fetch daily history.');
+                        const data = await response.json();
+
+                        // Simply use the data we get from the API
+                        // The backend already sends all the days with data
+                        setDaysData(data); // Data is already sorted by date descending (newest first)
+
+                    } catch (err) {
+                        setError('Failed to load history. The backend server might be down.');
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                fetchAllDays();
+            }, []);
+            
+            if (loading) return <Spinner />;
+            if (error) return <ErrorMessage message={error} />;
+
+            return (
+                <div className="fade-in">
+                    <h2 className="text-3xl font-bold mb-6 text-center">Daily Records</h2>
+                    {daysData.length === 0 ? (
+                      <p className="text-center text-slate-400">No records found. Start adding meals on the Home page!</p>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                          {daysData.map((day, index) => {
+                              const hasRecord = day.totalCalories > 0 || day.totalProtein > 0;
+                              const isWarning = day.totalCalories > CALORIE_THRESHOLD || (hasRecord && day.totalProtein < PROTEIN_THRESHOLD);
+                              
+                              let boxColor = 'bg-slate-800/50 border-slate-700'; // Default (Grey)
+                              if (hasRecord) {
+                                  boxColor = isWarning ? 'bg-orange-900/40 border-orange-700' : 'bg-green-900/40 border-green-700';
+                              }
+
+                              const formattedDate = new Date(day.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+                              return (
+                                  <div 
+                                      key={index}
+                                      style={{animationDelay: `${index * 20}ms`}}
+                                      className={`p-4 rounded-lg border shadow-md flex flex-col justify-between transition-transform duration-300 hover:scale-105 fade-in ${boxColor}`}
+                                  >
+                                      <p className="font-bold text-sm text-slate-300">{formattedDate}</p>
+                                      <div className="mt-2 text-center">
+                                          <p className="text-lg font-semibold">{day.totalCalories}</p>
+                                          <p className="text-xs text-slate-400">Calories</p>
+                                          <p className="text-lg font-semibold mt-1">{day.totalProtein}g</p>
+                                          <p className="text-xs text-slate-400">Protein</p>
+                                      </div>
+                                  </div>
+                              );
+                          })}
+                      </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
+
