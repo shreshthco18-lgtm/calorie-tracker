@@ -75,15 +75,15 @@ app.get('/api/days', async (req, res) => {
  * @access  Public
  */
 app.post('/api/meals', async (req, res) => {
-    const { calories, protein } = req.body;
+    const { calories, protein, date } = req.body;
 
     // Basic validation
-    if (!calories || !protein || isNaN(calories) || isNaN(protein)) {
+    if (!calories || !protein || !date || isNaN(calories) || isNaN(protein) || isNaN(date)) {
         return res.status(400).json({ message: 'Invalid input. Please provide numeric values for calories and protein.' });
     }
 
     // Get today's date in YYYY-MM-DD format using local time
-    const today = getTodayLocalDate();
+    const today = date;
 
     try {
         // Find the document for today. If it doesn't exist, create a new one.
@@ -102,7 +102,7 @@ app.post('/api/meals', async (req, res) => {
                 setDefaultsOnInsert: true // Apply default values if creating
             }
         );
-        res.status(201).json(dayEntry);
+        res.status(200).json(dayEntry);
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server Error: Could not save data.' });
@@ -115,8 +115,15 @@ app.post('/api/meals', async (req, res) => {
  * @access  Public
  */
 app.put('/api/days/reset', async (req, res) => {
+    const {  date } = req.body;
+
+    // Basic validation
+    if (!date || isNaN(date)) {
+        return res.status(400).json({ message: 'Invalid input. Please provide a valid date.' });
+    }
+
     // Get today's date in YYYY-MM-DD format using local time
-    const today = getTodayLocalDate();
+    const today = date;
 
     try {
         // Find the document for today and reset values to 0

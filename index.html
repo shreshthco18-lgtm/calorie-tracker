@@ -55,22 +55,22 @@
             const [page, setPage] = useState('home'); 
 
             const navigateTo = (newPage) => {
-                window.history.pushState({ page: newPage }, '', `#${newPage}`);
+                // window.history.pushState({ page: newPage }, '', `#${newPage}`);
                 setPage(newPage);
             };
 
-            useEffect(() => {
-                const handlePopState = (event) => {
-                    setPage(event.state?.page || 'home');
-                };
-                window.addEventListener('popstate', handlePopState);
+            // useEffect(() => {
+            //     const handlePopState = (event) => {
+            //         setPage(event.state?.page || 'home');
+            //     };
+            //     window.addEventListener('popstate', handlePopState);
                 
-                // Set initial page based on URL hash
-                const initialPage = window.location.hash.replace('#', '') || 'home';
-                setPage(initialPage);
+            //     // Set initial page based on URL hash
+            //     const initialPage = window.location.hash.replace('#', '') || 'home';
+            //     setPage(initialPage);
                 
-                return () => window.removeEventListener('popstate', handlePopState);
-            }, []);
+            //     return () => window.removeEventListener('popstate', handlePopState);
+            // }, []);
 
             return (
                 <div className="min-h-screen flex flex-col items-center p-4 sm:p-6 md:p-8">
@@ -156,7 +156,7 @@
                     const response = await fetch(`${API_URL}/meals`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ calories: Number(calories), protein: Number(protein) }),
+                        body: JSON.stringify({ calories: Number(calories), protein: Number(protein), date: getTodayDateString() }),
                     });
 
                     if (!response.ok) {
@@ -188,6 +188,7 @@
                     const response = await fetch(`${API_URL}/days/reset`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ date: getTodayDateString() })
                     });
 
                     if (!response.ok) {
