@@ -78,7 +78,7 @@ app.post('/api/meals', async (req, res) => {
     const { calories, protein, date } = req.body;
 
     // Basic validation
-    if (!calories || !protein || !date || isNaN(calories) || isNaN(protein) || isNaN(date)) {
+    if (!calories || !protein || !date || isNaN(calories) || isNaN(protein)) {
         return res.status(400).json({ message: 'Invalid input. Please provide numeric values for calories and protein.' });
     }
 
@@ -118,7 +118,7 @@ app.put('/api/days/reset', async (req, res) => {
     const {  date } = req.body;
 
     // Basic validation
-    if (!date || isNaN(date)) {
+    if (!date) {
         return res.status(400).json({ message: 'Invalid input. Please provide a valid date.' });
     }
 
